@@ -1,17 +1,6 @@
 
 " Vim script glue code for LLDB integration
 
-function! s:FindPythonScriptDir()
-  for dir in pathogen#split(&runtimepath)
-    let searchstr = "python-vim-lldb"
-    let candidates = pathogen#glob_directories(dir . "/" . searchstr)
-    if len(candidates) > 0
-      return candidates[0]
-    endif
-  endfor
-  return
-endfunction()
-
 function! s:InitLldbPlugin()
   if !has('python3')
     call confirm('ERROR: This Vim installation does not have python3 support. lldb.vim will not work.')
@@ -31,7 +20,7 @@ function! s:InitLldbPlugin()
   "
   " Setup the python3 interpreter path
   "
-  let vim_lldb_pydir = s:FindPythonScriptDir()
+  let vim_lldb_pydir = expand('<sfile>:p:h:h') . '/python-vim-lldb'
   execute 'python3 import sys; sys.path.append("' . vim_lldb_pydir . '")'
 
   "
