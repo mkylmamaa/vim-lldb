@@ -241,13 +241,14 @@ class VimPane(object):
     # list of defined highlights, so we avoid re-defining them
     highlightTypes = []
 
-    def __init__(self, owner, name, open_below=False, height=3):
+    def __init__(self, owner, name, open_below=False, height=3, append=False):
         self.owner = owner
         self.name = name
         self.buffer = None
         self.maxHeight = 20
         self.openBelow = open_below
         self.height = height
+        self.append = append
         self.owner.registerForUpdates(self)
 
     def isPrepared(self):
@@ -286,7 +287,7 @@ class VimPane(object):
         vim.command("setlocal buftype=nofile")  # Don't try to open a file
         vim.command("setlocal noswapfile")     # Don't use a swap file
         vim.command("set nonumber")            # Don't display line numbers
-        # vim.command("set nowrap")              # Don't wrap text
+        vim.command("set nowrap")              # Don't wrap text
 
         # Save some parameters and reference to buffer
         self.buffer = vim.current.buffer
@@ -309,26 +310,34 @@ class VimPane(object):
         goto_window(bufwinnr(self.name))
 
         # Clean and update content, and apply any highlights.
-        self.clean()
+        if not self.append:
+            self.clean()
 
-        if self.write(self.get_content(target, controller)):
-            self.apply_highlights()
+        content = self.get_content(target, controller)
 
-            cursor = self.get_selected_line()
-            if cursor is None:
-                # Place the cursor at its original position in the window
-                cursor_line = min(original_cursor[0], len(self.buffer))
-                cursor_col = min(
-                    original_cursor[1], len(
-                        self.buffer[
-                            cursor_line - 1]))
-            else:
-                # Place the cursor at the location requested by a VimPane
-                # implementation
-                cursor_line = min(cursor, len(self.buffer))
-                cursor_col = self.window.cursor[1]
+        if self.append:
+            if len(content) > 0:
+                self.write(content)
+        else:
+            if self.write(content):
+                if target and target.IsValid():
+                    self.apply_highlights()
 
-            self.window.cursor = (cursor_line, cursor_col)
+                    cursor = self.get_selected_line()
+                    if cursor is None:
+                        # Place the cursor at its original position in the window
+                        cursor_line = min(original_cursor[0], len(self.buffer))
+                        cursor_col = min(
+                            original_cursor[1], len(
+                                self.buffer[
+                                    cursor_line - 1]))
+                    else:
+                        # Place the cursor at the location requested by a VimPane
+                        # implementation
+                        cursor_line = min(cursor, len(self.buffer))
+                        cursor_col = self.window.cursor[1]
+
+                    self.window.cursor = (cursor_line, cursor_col)
 
         goto_previous_window()
 
@@ -370,12 +379,16 @@ class VimPane(object):
 
         try:
             self.buffer.append(msg.splitlines())
-            vim.command("execute \"normal ggdd\"")
+            if not self.append:
+                vim.command("execute \"normal ggdd\"")
         except vim.error:
             # cannot update window; happens when vim is exiting.
             return False
 
-        move_cursor(1, 0)
+        if not self.append:
+            move_cursor(1, 0)
+        else:
+            vim.command("execute \"normal G\"")
         return True
 
     def clean(self):
@@ -527,7 +540,6 @@ class RegistersPane(FrameKeyValuePane):
                 result.append(self.format_register(reg))
         return result
 
-
 class CommandPane(VimPane):
     """ Pane that displays the output of an LLDB command """
 
@@ -666,3 +678,22 @@ class BreakpointsPane(CommandPane):
             open_below=False,
             process_required=False)
         self.setCommand("breakpoint", "list")
+
+
+class OutputPane(VimPane):
+    """ Pane that displays the standard output and error of a process """
+
+    def __init__(self, owner, name='output', open_below=False, process_required=True):
+        VimPane.__init__(self, owner, name, open_below, 3, True)
+        self.process_required = process_required
+
+    def get_content(self, target, controller):
+        output = ""
+        if not target:
+            pass #output = VimPane.MSG_NO_TARGET
+        elif self.process_required and not target.GetProcess():
+            pass #output = VimPane.MSG_NO_PROCESS
+        else:
+            output = controller.getProcessOutput()
+        return output
+

@@ -5,6 +5,7 @@
 
 from __future__ import print_function
 
+import io
 import os
 import re
 import sys
@@ -78,6 +79,10 @@ class LLDBController(object):
         self.load_dependent_modules = True
 
         self.dbg = lldb.SBDebugger.Create()
+
+        # Don't use ANSI color codes as VIM doesn't handle them
+        self.dbg.SetUseColor(False)
+
         self.commandInterpreter = self.dbg.GetCommandInterpreter()
 
         self.ui = UI()
@@ -175,6 +180,13 @@ class LLDBController(object):
             self.process.Detach()
             self.processPendingEvents(self.eventDelayLaunch)
 
+    def doKill(self):
+        if self.process is not None and self.process.IsValid():
+            pid = self.process.GetProcessID()
+            state = state_type_to_str(self.process.GetState())
+            self.process.Kill()
+            self.processPendingEvents(self.eventDelayLaunch)
+
     def doLaunch(self, stop_at_entry, args):
         """ Handle process launch.  """
         error = lldb.SBError()
@@ -185,6 +197,8 @@ class LLDBController(object):
             pid = self.process.GetProcessID()
             state = state_type_to_str(self.process.GetState())
             self.process.Destroy()
+
+        print("Launching %s %s..." % (exe, args))
 
         launchInfo = lldb.SBLaunchInfo(args.split(' '))
         self.process = self.target.Launch(launchInfo, error)
@@ -230,6 +244,10 @@ class LLDBController(object):
         elif len(a) == 1 and a[0] not in target_args:
             exe = a[0]
 
+        self.ui.activate()
+        self.ui.update(self.target, "creating target %s..." % str(exe), self)
+        vim.command('redraw');
+
         err = lldb.SBError()
         self.target = self.dbg.CreateTarget(
             exe, None, None, self.load_dependent_modules, err)
@@ -237,9 +255,9 @@ class LLDBController(object):
             sys.stderr.write(
                 "Error creating target %s. %s" %
                 (str(exe), str(err)))
+            self.ui.deact
             return
 
-        self.ui.activate()
         self.ui.update(self.target, "created target %s" % str(exe), self)
 
     def doContinue(self):
@@ -329,6 +347,21 @@ class LLDBController(object):
         else:
             sys.stderr.write(output)
 
+    def getProcessOutput(self):
+        ret = ""
+        if self.process is not None:
+            while True:
+                output = self.process.GetSTDOUT(4096)
+                if len(output) == 0:
+                    break
+                ret += output
+            while True:
+                output = self.process.GetSTDERR(4096)
+                if len(output) == 0:
+                    break
+                ret += output
+        return ret
+
     def getCommandOutput(self, command, command_args=""):
         """ runs cmd in the command interpreter andreturns (status, result) """
         result = lldb.SBCommandReturnObject()
@@ -408,7 +441,8 @@ def returnCompleteWindow(a, l, p):
         'disassembly',
         'locals',
         'threads',
-        'registers']
+        'registers',
+        'output']
     vim.command('return "%s%s"' % (separator.join(results), separator))
 
 global ctrl

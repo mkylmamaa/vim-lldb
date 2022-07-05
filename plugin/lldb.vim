@@ -7,11 +7,6 @@ function! s:InitLldbPlugin()
     return
   endif
 
-  " Key-Bindings
-  " FIXME: choose sensible keybindings for:
-  " - process: start, interrupt, continue, continue-to-cursor
-  " - step: instruction, in, over, out
-  "
   if has('gui_macvim')
     " Apple-B toggles breakpoint on cursor
     map <D-B>     :Lbreakpoint<CR>
@@ -23,21 +18,16 @@ function! s:InitLldbPlugin()
   let vim_lldb_pydir = expand('<sfile>:p:h:h') . '/python-vim-lldb'
   execute 'python3 import sys; sys.path.append("' . vim_lldb_pydir . '")'
 
-  "
-  " Register :L<Command>
-  " The LLDB CommandInterpreter provides tab-completion in Vim's command mode.
-  " FIXME: this list of commands, at least partially should be auto-generated
-  "
-
   " Window show/hide commands
-  command -complete=custom,s:CompleteWindow -nargs=1 Lhide               python3 ctrl.doHide('<args>')
-  command -nargs=0 Lshow                                                 python3 ctrl.doShow('<args>')
+  command -complete=custom,s:CompleteWindow -nargs=? Lhide               python3 ctrl.doHide('<args>')
+  command -complete=custom,s:CompleteWindow -nargs=? Lshow               python3 ctrl.doShow('<args>')
 
   " Launching convenience commands (no autocompletion)
   command -nargs=* Lstart                                                python3 ctrl.doLaunch(True,  '<args>')
   command -nargs=* Lrun                                                  python3 ctrl.doLaunch(False, '<args>')
   command -nargs=1 Lattach                                               python3 ctrl.doAttach('<args>')
   command -nargs=0 Ldetach                                               python3 ctrl.doDetach()
+  command -nargs=0 Lkill                                                 python3 ctrl.doKill()
 
   " Regexp-commands: because vim's command mode does not support '_' or '-'
   " characters in command names, we omit them when creating the :L<cmd>
@@ -109,7 +99,7 @@ function! s:InitLldbPlugin()
 endfunction()
 
 function! s:CompleteCommand(A, L, P)
-  python3 << EOF
+python3 << EOF
 a = vim.eval("a:A")
 l = vim.eval("a:L")
 p = vim.eval("a:P")
@@ -118,7 +108,7 @@ EOF
 endfunction()
 
 function! s:CompleteWindow(A, L, P)
-  python3 << EOF
+python3 << EOF
 a = vim.eval("a:A")
 l = vim.eval("a:L")
 p = vim.eval("a:P")

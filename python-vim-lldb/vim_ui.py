@@ -29,9 +29,11 @@ class UI:
             'breakpoints',
             'backtrace',
             'locals',
-            'threads',
-            'registers',
-            'disassembly']
+            'output'
+            # 'threads',
+            # 'registers',
+            # 'disassembly'
+        ]
 
         # map of tuples (filename, line) --> SBBreakpoint
         self.markedBreakpoints = {}
@@ -50,6 +52,7 @@ class UI:
         self.localsPane = LocalsPane(self.paneCol)
         self.registersPane = RegistersPane(self.paneCol)
         self.breakPane = BreakpointsPane(self.paneCol)
+        self.outputPane = OutputPane(self.paneCol)
 
     def activate(self):
         """ Activate UI: display default set of panes """
@@ -247,10 +250,13 @@ class UI:
 
     def hideWindow(self, name):
         """ Hides window pane specified by name """
-        if not self.paneCol.havePane(name):
-            sys.stderr.write("unknown window: %s" % name)
-            return False
-        self.paneCol.hide([name])
+        if len(name) > 0:
+            if not self.paneCol.havePane(name):
+                sys.stderr.write("unknown window: %s" % name)
+                return False
+            self.paneCol.hide([name])
+        else:
+            self.paneCol.hide()
         return True
 
 global ui
